@@ -135,19 +135,33 @@
 // URL and anon public key (Supabase dashboard → Settings → API)
 // =====================================================================
 const SUPABASE_URL = 'https://hprbebdyjbvvanruyhkc.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_QCDTyCgW-5ISmliOLWD2Kw_jmvEvzrl';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwcmJlYmR5amJ2dmFucnV5aGtjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MDM1MzYsImV4cCI6MjA5OTE3OTUzNn0.4KC24PH8RVLeInRyrYf9pSzY5GD5XmO2m6kOak0xRVM';
 // =====================================================================
 
 let supabase = null;
 let configOk = SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
+let supabaseLoadError = null;
 if(configOk){
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-} else {
-  document.getElementById('setupBanner').innerHTML = `<div class="setup-banner">
-    ⚠️ <b>Setup needed:</b> Open <code>index.html</code> and replace <code>SUPABASE_URL</code> and
-    <code>SUPABASE_ANON_KEY</code> near the top of the script with your Supabase project's values,
-    then redeploy. Until then, data can't be saved.
-  </div>`;
+  try{
+    if(typeof window.supabase === 'undefined' || !window.supabase.createClient){
+      throw new Error('Supabase library failed to load (network or CDN may be blocked)');
+    }
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }catch(e){
+    supabaseLoadError = e;
+    configOk = false;
+    console.error('Supabase init failed:', e);
+  }
+}
+if(!configOk){
+  const bannerHtml = supabaseLoadError
+    ? `<div class="setup-banner">⚠️ <b>Connection problem:</b> ${String(supabaseLoadError.message)}.<br>Try: turn off VPN, use Safari instead of Chrome, or reload this page.</div>`
+    : `<div class="setup-banner">
+        ⚠️ <b>Setup needed:</b> Open <code>index.html</code> and replace <code>SUPABASE_URL</code> and
+        <code>SUPABASE_ANON_KEY</code> near the top of the script with your Supabase project's values,
+        then redeploy. Until then, data can't be saved.
+      </div>`;
+  document.getElementById('setupBanner').innerHTML = bannerHtml;
 }
 
 let state = { date: todayStr(), items: [], prevDate: null, prevItems: [] };
