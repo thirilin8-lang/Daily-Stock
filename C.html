@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Ledger</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ink:#1B2430; --paper:#EEF1F0; --panel:#FFFFFF;
+    --steel:#2F6690; --steel-dark:#234C6B;
+    --red:#C1443C; --red-bg:#F7E4E2;
+    --amber:#C98A2C; --amber-bg:#F8ECD8;
+    --green:#4C7A5E; --green-bg:#E4EEE8;
+    --line:#D8DCD6; --muted:#6B7480;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--paper); color:var(--ink); font-family:'Inter',system-ui,-apple-system,sans-serif; -webkit-font-smoothing:antialiased; padding-bottom:40px; }
+  header.top{ position:sticky; top:0; z-index:20; background:var(--ink); color:#fff; padding:14px 16px 12px; }
+  .eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#9FB4C4; margin:0 0 2px; }
+  h1{ font-family:'Space Grotesk','Inter',sans-serif; font-size:22px; font-weight:700; margin:0 0 10px; letter-spacing:-.01em; }
+  .date-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .date-row input[type=date]{ background:#26313F; border:1px solid #3A4756; color:#fff; border-radius:8px; padding:8px 10px; font-family:inherit; font-size:14px; }
+  .hist-select{ background:#26313F; border:1px solid #3A4756; color:#fff; border-radius:8px; padding:8px 10px; font-size:14px; max-width:150px; }
+  .panel{ background:var(--panel); margin:12px; border-radius:12px; border:1px solid var(--line); overflow:hidden; }
+  .panel-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 14px; cursor:pointer; user-select:none; }
+  .panel-head span.title{ font-weight:600; font-size:14px; }
+  .panel-head span.chev{ color:var(--muted); font-size:12px; }
+  .panel-body{ padding:0 14px 14px; }
+  textarea{ width:100%; min-height:160px; resize:vertical; border:1px solid var(--line); border-radius:8px; padding:10px; font-family:'IBM Plex Mono',monospace; font-size:13px; background:#FBFBFA; }
+  .btn-row{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  button{ font-family:'Inter',sans-serif; font-weight:600; font-size:13px; border:none; border-radius:8px; padding:10px 14px; cursor:pointer; }
+  .btn-primary{ background:var(--steel); color:#fff; }
+  .btn-primary:active{ background:var(--steel-dark); }
+  .btn-ghost{ background:#fff; color:var(--ink); border:1px solid var(--line); }
+  .btn-ghost:active{ background:#F0F0EE; }
+  .hint{ font-size:12px; color:var(--muted); margin-top:8px; line-height:1.5; }
+  .summary{ display:grid; grid-template-columns:repeat(4,1fr); margin:12px; gap:8px; }
+  .stat{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 6px; text-align:center; }
+  .stat .num{ font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:700; }
+  .stat.low .num{ color:var(--red); }
+  .stat .lbl{ font-size:10.5px; color:var(--muted); margin-top:2px; }
+  .filters{ margin:12px; display:flex; flex-direction:column; gap:8px; }
+  .filters input[type=text]{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line); font-size:14px; background:var(--panel); }
+  .filter-row{ display:flex; gap:8px; }
+  .filter-row select{ flex:1; padding:9px 10px; border-radius:10px; border:1px solid var(--line); background:var(--panel); font-size:13px; color:var(--ink); font-family:'Inter',sans-serif; }
+  .chip-row{ display:flex; gap:6px; flex-wrap:wrap; }
+  .chip{ padding:6px 12px; border-radius:20px; font-size:12.5px; font-weight:600; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+  .chip.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .chip.low{ color:var(--red); }
+  .chip.low.active{ background:var(--red); border-color:var(--red); color:#fff; }
+  .empty{ margin:30px 16px; text-align:center; color:var(--muted); font-size:14px; line-height:1.6; }
+  .table-wrap{ margin:12px; background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:auto; max-height:62vh; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  thead th{ position:sticky; top:0; z-index:5; background:var(--ink); color:#fff; text-align:left; padding:10px 10px; font-size:11px; letter-spacing:.05em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace; font-weight:600; white-space:nowrap; }
+  tbody td{ padding:9px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  tbody tr:last-child td{ border-bottom:none; }
+  td.size{ font-family:'IBM Plex Mono',monospace; }
+  td.qty{ font-family:'IBM Plex Mono',monospace; font-weight:700; text-align:right; }
+  td.supplier{ color:var(--muted); font-size:12px; }
+  tr.low{ background:var(--red-bg); }
+  tr.low td.qty{ color:var(--red); }
+  tr.mid{ background:var(--amber-bg); }
+  .delta{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600; padding:2px 6px; border-radius:5px; display:inline-block; }
+  .delta.up{ background:var(--green-bg); color:var(--green); }
+  .delta.down{ background:#fff; color:var(--red); }
+  .delta.flat{ background:#F0F0EE; color:var(--muted); }
+  .delta.new{ background:var(--amber-bg); color:var(--amber); }
+  .footer-actions{ margin:18px 12px 0; display:flex; gap:8px; flex-wrap:wrap; }
+  .toast{ position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:20px; font-size:13px; box-shadow:0 6px 20px rgba(0,0,0,.2); z-index:50; opacity:0; transition:opacity .25s; }
+  .toast.show{ opacity:1; }
+  .setup-banner{ margin:12px; padding:14px; background:#3a2418; border:1px solid #6b4226; border-radius:10px; color:#f5d9c0; font-size:13px; line-height:1.6; }
+  .setup-banner code{ background:#22150c; padding:2px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <p class="eyebrow">Daily Balance Tracker</p>
+  <h1>Stock Ledger</h1>
+  <div class="date-row">
+    <input type="date" id="dateInput">
+    <select class="hist-select" id="histSelect"><option value="">History...</option></select>
+  </div>
+</header>
+
+<div id="setupBanner"></div>
+
+<div class="panel" id="pastePanel">
+  <div class="panel-head" onclick="togglePanel()">
+    <span class="title">＋ Paste Message</span>
+    <span class="chev" id="chev">▾</span>
+  </div>
+  <div class="panel-body" id="pasteBody">
+    <textarea id="rawInput" placeholder="Supplier: Chunli&#10;Knee&#10;4.5x30=6&#10;4.5x35=1&#10;Supplier: JUST&#10;Acetabular Screw&#10;50=12&#10;55=8"></textarea>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="saveSnapshot()">Save for This Date</button>
+      <button class="btn-ghost" onclick="document.getElementById('rawInput').value=''">Clear</button>
+    </div>
+    <p class="hint">
+      Use a "Supplier: XXX" line to group by supplier, then a Category/Item name line, then size=qty lines.<br>
+      You can also paste without a Supplier line (just Category → size=qty) — Supplier will default to "General".
+    </p>
+  </div>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<div class="filters">
+  <input type="text" id="searchBox" placeholder="Search Supplier / Category / Size..." oninput="render()">
+  <div class="filter-row">
+    <select id="supplierFilter" onchange="onSupplierChange()"></select>
+    <select id="categoryFilter" onchange="render()"></select>
+  </div>
+  <div class="chip-row">
+    <span class="chip active" data-stock="all" onclick="setStockFilter('all')">All</span>
+    <span class="chip low" data-stock="low" onclick="setStockFilter('low')">Low Stock</span>
+    <span class="chip" data-stock="ok" onclick="setStockFilter('ok')">Normal Stock</span>
+  </div>
+</div>
+
+<div id="content"></div>
+
+<div class="footer-actions">
+  <button class="btn-ghost" onclick="exportExcelToday()">📊 Export Today (Excel)</button>
+  <button class="btn-ghost" onclick="exportExcelAll()">🗂️ Export All Dates (Excel)</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =====================================================================
+// SUPABASE CONFIG — replace these two values with your own project's
+// URL and anon public key (Supabase dashboard → Settings → API)
+// =====================================================================
+const SUPABASE_URL = 'https://hprbebdyjbvvanruyhkc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwcmJlYmR5amJ2dmFucnV5aGtjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MDM1MzYsImV4cCI6MjA5OTE3OTUzNn0.4KC24PH8RVLeInRyrYf9pSzY5GD5XmO2m6kOak0xRVM';
+// =====================================================================
+
+let supabase = null;
+let configOk = SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
+let supabaseLoadError = null;
+if(configOk){
+  try{
+    if(typeof window.supabase === 'undefined' || !window.supabase.createClient){
+      throw new Error('Supabase library failed to load (network or CDN may be blocked)');
+    }
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }catch(e){
+    supabaseLoadError = e;
+    configOk = false;
+    console.error('Supabase init failed:', e);
+  }
+}
+if(!configOk){
+  const bannerHtml = supabaseLoadError
+    ? `<div class="setup-banner">⚠️ <b>Connection problem:</b> ${String(supabaseLoadError.message)}.<br>Try: turn off VPN, use Safari instead of Chrome, or reload this page.</div>`
+    : `<div class="setup-banner">
+        ⚠️ <b>Setup needed:</b> Open <code>index.html</code> and replace <code>SUPABASE_URL</code> and
+        <code>SUPABASE_ANON_KEY</code> near the top of the script with your Supabase project's values,
+        then redeploy. Until then, data can't be saved.
+      </div>`;
+  document.getElementById('setupBanner').innerHTML = bannerHtml;
+}
+
+let state = { date: todayStr(), items: [], prevDate: null, prevItems: [] };
+let stockFilter = 'all';
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+function togglePanel(){
+  const body = document.getElementById('pasteBody');
+  const chev = document.getElementById('chev');
+  const hidden = body.style.display === 'none';
+  body.style.display = hidden ? 'block' : 'none';
+  chev.textContent = hidden ? '▾' : '▸';
+}
+function setStockFilter(v){
+  stockFilter = v;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active', c.dataset.stock===v));
+  render();
+}
+
+function sanitizeText(t){
+  return t.normalize('NFC')
+    .replace(/[\u200B-\u200D\uFEFF]/g,'')
+    .replace(/[\u00A0]/g,' ')
+    .replace(/[\u2018\u2019]/g,"'")
+    .replace(/[\u201C\u201D]/g,'"')
+    .replace(/\r\n/g,'\n');
+}
+
+function parseStockText(text){
+  const lines = text.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  const items = [];
+  let currentSupplier = 'General';
+  let currentCategory = 'Other';
+  for(const line of lines){
+    const supMatch = line.match(/^supplier\s*[:\-]\s*(.+)$/i);
+    if(supMatch){ currentSupplier = supMatch[1].trim(); continue; }
+    const eqIdx = line.indexOf('=');
+    if(eqIdx === -1){
+      currentCategory = line;
+    } else {
+      const key = line.slice(0, eqIdx).trim();
+      const valRaw = line.slice(eqIdx+1).trim();
+      const val = parseFloat(valRaw);
+      items.push({ supplier: currentSupplier, category: currentCategory, size:key, qty: isNaN(val)?0:val });
+    }
+  }
+  return items;
+}
+
+function itemKey(it){ return it.supplier+'|'+it.category+'|'+it.size; }
+function prevMapOf(list){
+  const map = {};
+  for(const it of list) map[itemKey(it)] = it.qty;
+  return map;
+}
+function escapeAttr(s){ return String(s).replace(/"/g,'&quot;'); }
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ---------- Supabase persistence ----------
+async function saveSnapshot(){
+  if(!configOk){ toast('Supabase not configured yet — see banner above'); return; }
+  const dateVal = document.getElementById('dateInput').value || todayStr();
+  const raw = sanitizeText(document.getElementById('rawInput').value);
+  if(!raw.trim()){ toast('No text to paste'); return; }
+  const items = parseStockText(raw);
+  if(items.length === 0){ toast('No valid size=qty lines found'); return; }
+  try{
+    const { error } = await supabase
+      .from('stock_snapshots')
+      .upsert({ snapshot_date: dateVal, items }, { onConflict: 'snapshot_date' });
+    if(error) throw error;
+    toast('✅ Saved '+items.length+' items for '+dateVal);
+    state.date = dateVal;
+    document.getElementById('dateInput').value = dateVal;
+    await loadHistoryList();
+    await loadDate(dateVal);
+    togglePanel();
+  }catch(e){
+    console.error(e);
+    toast('Save failed: '+(e.message||'unknown error'));
+  }
+}
+
+async function loadHistoryList(){
+  if(!configOk) return [];
+  try{
+    const { data, error } = await supabase
+      .from('stock_snapshots')
+      .select('snapshot_date')
+      .order('snapshot_date', { ascending:true });
+    if(error) throw error;
+    const dates = (data||[]).map(r=>r.snapshot_date);
+    const sel = document.getElementById('histSelect');
+    sel.innerHTML = '<option value="">History...</option>' + dates.map(d=>`<option value="${d}">${d}</option>`).join('');
+    return dates;
+  }catch(e){ console.error(e); return []; }
+}
+
+async function loadDate(dateVal){
+  state.date = dateVal;
+  document.getElementById('dateInput').value = dateVal;
+  if(!configOk){ render(); return; }
+  let cur = null;
+  try{
+    const { data, error } = await supabase.from('stock_snapshots').select('items').eq('snapshot_date', dateVal).maybeSingle();
+    if(error) throw error;
+    cur = data;
+  }catch(e){ console.error(e); cur = null; }
+  state.items = cur ? cur.items : [];
+
+  const dates = await loadHistoryList();
+  const earlier = dates.filter(d=>d < dateVal);
+  state.prevDate = earlier.length ? earlier[earlier.length-1] : null;
+  state.prevItems = [];
+  if(state.prevDate){
+    try{
+      const { data, error } = await supabase.from('stock_snapshots').select('items').eq('snapshot_date', state.prevDate).maybeSingle();
+      if(error) throw error;
+      state.prevItems = data ? data.items : [];
+    }catch(e){ state.prevItems = []; }
+  }
+  populateFilterOptions();
+  render();
+}
+
+function populateFilterOptions(){
+  const supSel = document.getElementById('supplierFilter');
+  const suppliers = [...new Set(state.items.map(i=>i.supplier))].sort();
+  const prevSupplierVal = supSel.value;
+  supSel.innerHTML = '<option value="">All Suppliers</option>' + suppliers.map(s=>`<option value="${escapeAttr(s)}">${s}</option>`).join('');
+  if(suppliers.includes(prevSupplierVal)) supSel.value = prevSupplierVal;
+  populateCategoryOptions();
+}
+function populateCategoryOptions(){
+  const supVal = document.getElementById('supplierFilter').value;
+  const catSel = document.getElementById('categoryFilter');
+  const prevCatVal = catSel.value;
+  const pool = supVal ? state.items.filter(i=>i.supplier===supVal) : state.items;
+  const cats = [...new Set(pool.map(i=>i.category))].sort();
+  catSel.innerHTML = '<option value="">All Categories</option>' + cats.map(c=>`<option value="${escapeAttr(c)}">${c}</option>`).join('');
+  if(cats.includes(prevCatVal)) catSel.value = prevCatVal;
+}
+function onSupplierChange(){ populateCategoryOptions(); render(); }
+
+function render(){
+  const content = document.getElementById('content');
+  const summary = document.getElementById('summary');
+  const search = document.getElementById('searchBox').value.trim().toLowerCase();
+  const supVal = document.getElementById('supplierFilter').value;
+  const catVal = document.getElementById('categoryFilter').value;
+
+  if(state.items.length === 0){
+    content.innerHTML = `<div class="empty">No data yet for this date.<br>Open the "Paste Message" panel above and paste your message.</div>`;
+    summary.innerHTML = '';
+    return;
+  }
+
+  const prevMap = prevMapOf(state.prevItems);
+  let filtered = state.items.filter(it=>{
+    if(supVal && it.supplier !== supVal) return false;
+    if(catVal && it.category !== catVal) return false;
+    if(search){
+      const hay = (it.supplier+' '+it.category+' '+it.size).toLowerCase();
+      if(!hay.includes(search)) return false;
+    }
+    if(stockFilter === 'low' && it.qty > 2) return false;
+    if(stockFilter === 'ok' && it.qty <= 2) return false;
+    return true;
+  });
+
+  const totalSuppliers = new Set(state.items.map(i=>i.supplier)).size;
+  const totalCategories = new Set(state.items.map(i=>i.category)).size;
+  const totalItems = state.items.length;
+  const lowCount = state.items.filter(i=>i.qty<=2).length;
+
+  summary.innerHTML = `
+    <div class="stat"><div class="num">${totalSuppliers}</div><div class="lbl">Supplier</div></div>
+    <div class="stat"><div class="num">${totalCategories}</div><div class="lbl">Category</div></div>
+    <div class="stat"><div class="num">${totalItems}</div><div class="lbl">Total Items</div></div>
+    <div class="stat ${lowCount>0?'low':''}"><div class="num">${lowCount}</div><div class="lbl">Low Stock</div></div>
+  `;
+
+  if(filtered.length === 0){
+    content.innerHTML = `<div class="empty">No items match your search/filter</div>`;
+    return;
+  }
+
+  let rows = '';
+  for(const it of filtered){
+    const low = it.qty <= 2;
+    const mid = it.qty > 2 && it.qty <= 5;
+    const key = itemKey(it);
+    let deltaHtml = '';
+    if(key in prevMap){
+      const diff = it.qty - prevMap[key];
+      if(diff > 0) deltaHtml = `<span class="delta up">+${diff} In</span>`;
+      else if(diff < 0) deltaHtml = `<span class="delta down">${diff} Out</span>`;
+      else deltaHtml = `<span class="delta flat">No change</span>`;
+    } else {
+      deltaHtml = `<span class="delta new">New</span>`;
+    }
+    rows += `<tr class="${low?'low':(mid?'mid':'')}">
+      <td class="supplier">${escapeHtml(it.supplier)}</td>
+      <td>${escapeHtml(it.category)}</td>
+      <td class="size">${escapeHtml(it.size)}</td>
+      <td class="qty">${it.qty}</td>
+      <td>${deltaHtml}</td>
+    </tr>`;
+  }
+
+  content.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>Supplier</th><th>Category</th><th>Size</th><th>Qty</th><th>Change</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+// ---------- Excel export ----------
+function dayRowsAOA(items, prevMap){
+  const rows = [['Supplier','Category','Size','Qty','Previous','Change']];
+  for(const it of items){
+    const key = itemKey(it);
+    const prev = prevMap && (key in prevMap) ? prevMap[key] : '';
+    const diff = prevMap && (key in prevMap) ? (it.qty - prevMap[key]) : '';
+    rows.push([it.supplier, it.category, it.size, it.qty, prev, diff]);
+  }
+  return rows;
+}
+function styleSheet(ws){
+  ws['!cols'] = [{wch:14},{wch:16},{wch:12},{wch:8},{wch:10},{wch:10}];
+  ws['!freeze'] = {xSplit:0, ySplit:1};
+  return ws;
+}
+function exportExcelToday(){
+  if(typeof XLSX === 'undefined'){ toast('Excel library failed to load'); return; }
+  if(state.items.length === 0){ toast('No data to export'); return; }
+  const prevMap = prevMapOf(state.prevItems);
+  const aoa = dayRowsAOA(state.items, prevMap);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  styleSheet(ws);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, state.date);
+  XLSX.writeFile(wb, `stock_${state.date}.xlsx`);
+  toast('✅ Excel file downloaded');
+}
+async function exportExcelAll(){
+  if(typeof XLSX === 'undefined'){ toast('Excel library failed to load'); return; }
+  const dates = await loadHistoryList();
+  if(dates.length === 0){ toast('No history to export'); return; }
+  const wb = XLSX.utils.book_new();
+  for(let i=0;i<dates.length;i++){
+    const d = dates[i];
+    let items = [];
+    try{
+      const { data } = await supabase.from('stock_snapshots').select('items').eq('snapshot_date', d).maybeSingle();
+      items = data ? data.items : [];
+    }catch(e){ items = []; }
+    let prevItems = [];
+    if(i > 0){
+      try{
+        const { data } = await supabase.from('stock_snapshots').select('items').eq('snapshot_date', dates[i-1]).maybeSingle();
+        prevItems = data ? data.items : [];
+      }catch(e){ prevItems = []; }
+    }
+    const prevMap = prevMapOf(prevItems);
+    const aoa = dayRowsAOA(items, prevMap);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    styleSheet(ws);
+    const sheetName = d.length > 31 ? d.slice(0,31) : d;
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  }
+  XLSX.writeFile(wb, `stock_history_all.xlsx`);
+  toast('✅ Excel file (all dates) downloaded');
+}
+
+document.getElementById('dateInput').addEventListener('change', (e)=> loadDate(e.target.value));
+document.getElementById('histSelect').addEventListener('change', (e)=>{ if(e.target.value) loadDate(e.target.value); });
+
+(async function init(){
+  document.getElementById('dateInput').value = state.date;
+  document.getElementById('pasteBody').style.display = 'block';
+  if(configOk){
+    await loadHistoryList();
+    await loadDate(state.date);
+  }
+})();
+</script>
+</body>
+</html>
