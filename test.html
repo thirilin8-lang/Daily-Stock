@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JS Test</title>
+</head>
+<body style="font-family:sans-serif; padding:30px; background:#1B2430; color:white;">
+<h1>JavaScript Test Page</h1>
+<p id="status" style="font-size:20px; color:yellow;">Waiting for JS...</p>
+<p>Time when page HTML loaded: <span id="htmltime"></span></p>
+<p>Time when JS ran: <span id="jstime">not yet</span></p>
+
+<script>
+document.getElementById('htmltime').textContent = 'set by inline script, should show immediately';
+document.getElementById('status').textContent = '✅ JavaScript IS working on this device!';
+document.getElementById('status').style.color = 'lightgreen';
+document.getElementById('jstime').textContent = new Date().toString();
+</script>
+</body>
+</html>
