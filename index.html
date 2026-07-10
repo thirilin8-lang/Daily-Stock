@@ -97,6 +97,7 @@
     <textarea id="rawInput" placeholder="Supplier: Chunli&#10;Knee&#10;4.5x30=6&#10;4.5x35=1&#10;Supplier: JUST&#10;Acetabular Screw&#10;50=12&#10;55=8"></textarea>
     <div class="btn-row">
       <button class="btn-primary" onclick="saveSnapshot()">Save for This Date</button>
+      <button class="btn-ghost" onclick="exportPasteDirectToExcel()">📊 Export This Paste to Excel</button>
       <button class="btn-ghost" onclick="document.getElementById('rawInput').value=''">Clear</button>
     </div>
     <p class="hint">
@@ -111,8 +112,8 @@
 <div class="filters">
   <input type="text" id="searchBox" placeholder="Search Supplier / Category / Size..." oninput="render()">
   <div class="filter-row">
-    <select id="supplierFilter" onchange="onSupplierChange()"></select>
-    <select id="categoryFilter" onchange="render()"></select>
+    <select id="supplierFilter" onchange="onSupplierChange()"><option value="">All Suppliers</option></select>
+    <select id="categoryFilter" onchange="render()"><option value="">All Categories</option></select>
   </div>
   <div class="chip-row">
     <span class="chip active" data-stock="all" onclick="setStockFilter('all')">All</span>
@@ -413,6 +414,22 @@ function styleSheet(ws){
   ws['!freeze'] = {xSplit:0, ySplit:1};
   return ws;
 }
+function exportPasteDirectToExcel(){
+  if(typeof XLSX === 'undefined'){ toast('Excel library failed to load — check your internet and retry'); return; }
+  const raw = sanitizeText(document.getElementById('rawInput').value);
+  if(!raw.trim()){ toast('No text to paste'); return; }
+  const items = parseStockText(raw);
+  if(items.length === 0){ toast('No valid size=qty lines found — check the format'); return; }
+  const aoa = dayRowsAOA(items, {});
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  styleSheet(ws);
+  const wb = XLSX.utils.book_new();
+  const dateVal = document.getElementById('dateInput').value || todayStr();
+  XLSX.utils.book_append_sheet(wb, ws, dateVal);
+  XLSX.writeFile(wb, `stock_${dateVal}.xlsx`);
+  toast('✅ Excel file downloaded — '+items.length+' items');
+}
+
 function exportExcelToday(){
   if(typeof XLSX === 'undefined'){ toast('Excel library failed to load'); return; }
   if(state.items.length === 0){ toast('No data to export'); return; }
