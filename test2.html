@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CDN Test</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body style="font-family:sans-serif; padding:30px; background:#1B2430; color:white;">
+<h1>CDN Load Test</h1>
+<p id="status" style="font-size:20px; color:yellow;">Checking...</p>
+<script>
+document.getElementById('status').textContent =
+  (typeof window.supabase !== 'undefined' && window.supabase.createClient)
+    ? '✅ Supabase CDN loaded successfully!'
+    : '❌ Supabase CDN FAILED to load (this is the problem)';
+document.getElementById('status').style.color =
+  (typeof window.supabase !== 'undefined' && window.supabase.createClient) ? 'lightgreen' : 'salmon';
+</script>
+</body>
+</html>
