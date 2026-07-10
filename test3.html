@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Full Test</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body style="font-family:sans-serif; padding:30px; background:#1B2430; color:white;">
+<h1>Full Test</h1>
+<p id="s1" style="font-size:18px;">1. Supabase lib: checking...</p>
+<p id="s2" style="font-size:18px;">2. XLSX lib: checking...</p>
+<p id="s3" style="font-size:18px;">3. createClient: checking...</p>
+<p id="s4" style="font-size:18px;">4. Database query: checking...</p>
+
+<script>
+const s1 = document.getElementById('s1');
+const s2 = document.getElementById('s2');
+const s3 = document.getElementById('s3');
+const s4 = document.getElementById('s4');
+
+s1.textContent = (typeof window.supabase !== 'undefined') ? '1. Supabase lib: ✅ OK' : '1. Supabase lib: ❌ FAILED';
+s1.style.color = (typeof window.supabase !== 'undefined') ? 'lightgreen' : 'salmon';
+
+s2.textContent = (typeof XLSX !== 'undefined') ? '2. XLSX lib: ✅ OK' : '2. XLSX lib: ❌ FAILED';
+s2.style.color = (typeof XLSX !== 'undefined') ? 'lightgreen' : 'salmon';
+
+try {
+  const client = window.supabase.createClient(
+    'https://hprbebdyjbvvanruyhkc.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwcmJlYmR5amJ2dmFucnV5aGtjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MDM1MzYsImV4cCI6MjA5OTE3OTUzNn0.4KC24PH8RVLeInRyrYf9pSzY5GD5XmO2m6kOak0xRVM'
+  );
+  s3.textContent = '3. createClient: ✅ OK';
+  s3.style.color = 'lightgreen';
+
+  s4.textContent = '4. Database query: running...';
+  client.from('stock_snapshots').select('snapshot_date').limit(1).then(({data, error}) => {
+    if(error){
+      s4.textContent = '4. Database query: ❌ ERROR: ' + error.message;
+      s4.style.color = 'salmon';
+    } else {
+      s4.textContent = '4. Database query: ✅ OK, got ' + (data ? data.length : 0) + ' rows';
+      s4.style.color = 'lightgreen';
+    }
+  }).catch(e => {
+    s4.textContent = '4. Database query: ❌ EXCEPTION: ' + e.message;
+    s4.style.color = 'salmon';
+  });
+} catch(e) {
+  s3.textContent = '3. createClient: ❌ ERROR: ' + e.message;
+  s3.style.color = 'salmon';
+  s4.textContent = '4. Database query: skipped (createClient failed)';
+}
+</script>
+</body>
+</html>
